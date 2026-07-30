@@ -1,0 +1,23 @@
+[Unit]
+Description=site-monitor (availability monitor + Telegram alerts)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# On Oracle Cloud: "ubuntu" for Ubuntu images, "opc" for Oracle Linux images.
+User=ubuntu
+WorkingDirectory=/opt/site-monitor
+EnvironmentFile=/opt/site-monitor/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+# Graceful shutdown: the app handles SIGTERM (flushes logs, sends "stopped").
+KillSignal=SIGTERM
+TimeoutStopSec=20
+# Light hardening.
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
