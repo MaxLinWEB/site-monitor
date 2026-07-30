@@ -43,9 +43,18 @@ cd "${APP_DIR}"
 npm ci
 npm run build
 
-# 3) Install & start the systemd service.
+# 3) Install & start the systemd service (auto-fill user + paths so it works
+#    whether the box user is "ubuntu", "opc", or something else, and regardless
+#    of where you cloned the repo).
 echo "==> installing systemd unit"
-install -m 0644 "${APP_DIR}/deploy/${SERVICE}.service" "/etc/systemd/system/${SERVICE}.service"
+RUN_USER="${SUDO_USER:-$(whoami)}"
+sed \
+  -e "s/^User=.*/User=${RUN_USER}/" \
+  -e "s#^WorkingDirectory=.*#WorkingDirectory=${APP_DIR}#" \
+  -e "s#^EnvironmentFile=.*#EnvironmentFile=${APP_DIR}/.env#" \
+  -e "s#^ExecStart=.*#ExecStart=$(command -v node) dist/index.js#" \
+  "${APP_DIR}/deploy/${SERVICE}.service" > "/etc/systemd/system/${SERVICE}.service"
+chmod 0644 "/etc/systemd/system/${SERVICE}.service"
 systemctl daemon-reload
 systemctl enable --now "${SERVICE}"
 
