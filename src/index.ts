@@ -164,7 +164,8 @@ class Monitor {
           `🟠 RATE LIMIT DETECTED\n\n` +
             `Website:\n${this.config.siteUrl}\n\n` +
             `Status:\nHTTP ${result.httpCode ?? 429}\n\n` +
-            `This may indicate Firebase/Auth/Hosting rate limiting.`,
+            `The server is answering "Too Many Requests". ` +
+            `If it keeps doing so, an OFFLINE alert follows.`,
         );
       }
     } else {

@@ -51,7 +51,8 @@ function integer(name: string, fallback: number): number {
 
 /** Optional TCP port from $PORT (platform-injected) or $STATUS_PORT. 0 = disabled. */
 function statusPort(): number {
-  const raw = (process.env.PORT ?? process.env.STATUS_PORT ?? '').trim();
+  // `||`, not `??`: an empty PORT= (common in .env files) must fall through to STATUS_PORT.
+  const raw = process.env.PORT?.trim() || process.env.STATUS_PORT?.trim() || '';
   if (raw === '') return 0;
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 0 || n > 65_535) {

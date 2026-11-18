@@ -1,5 +1,10 @@
 # site-monitor
 
+[![CI](https://github.com/MaxLinWEB/site-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/MaxLinWEB/site-monitor/actions/workflows/ci.yml)
+![Node](https://img.shields.io/badge/node-%E2%89%A518-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A lightweight, production-grade availability monitor. It checks your website on
 a fixed interval, debounces transient blips so you don't get false alarms, and
 pushes a Telegram message the moment the confirmed status changes.
@@ -35,7 +40,8 @@ pushes a Telegram message the moment the confirmed status changes.
 ## Installation
 
 ```bash
-cd monitor
+git clone https://github.com/MaxLinWEB/site-monitor.git
+cd site-monitor
 npm install
 cp .env.example .env
 # then edit .env (see Configuration below)
@@ -62,6 +68,8 @@ All configuration is via `.env`:
 | `LOG_MAX_FILES`      |          | `5`            | Number of rotated log files to keep.                    |
 | `TELEGRAM_RETRIES`   |          | `3`            | Retry attempts for a failed Telegram send.              |
 | `USER_AGENT`         |          | `site-monitor/1.0` | User-Agent header sent with each check.             |
+| `STATUS_PORT`        |          | off            | Port for the status API. `$PORT` wins when the host sets it. |
+| `TELEGRAM_API_BASE`  |          | `https://api.telegram.org` | Only for a self-hosted Bot API server or tests. |
 
 The process **fails fast at startup** with a clear message if a required value
 is missing or malformed (e.g. a bad `SITE_URL`).
@@ -201,7 +209,7 @@ http://localhost:5000
 Status:
 HTTP 429
 
-This may indicate Firebase/Auth/Hosting rate limiting.
+The server is answering "Too Many Requests". If it keeps doing so, an OFFLINE alert follows.
 ```
 
 ---
@@ -334,7 +342,7 @@ sudo apt-get install -y nodejs
 
 ```bash
 rsync -av --exclude node_modules --exclude dist --exclude logs \
-  "monitor/" ubuntu@<public-ip>:/opt/site-monitor/
+  ./ ubuntu@<public-ip>:/opt/site-monitor/
 ```
 
 **4. Build & configure on the box:**
@@ -347,8 +355,14 @@ cp .env.example .env
 nano .env          # set SITE_URL (public!) + TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
 ```
 
-**5. Install the systemd service** (use the unit above; set `User=ubuntu` or
-`opc`, `WorkingDirectory=/opt/site-monitor`):
+**5. Install the systemd service.** The one-shot script does steps 2, 4 and 5 for you
+(installs Node if needed, builds, fills in the user and paths, starts the service):
+
+```bash
+sudo bash deploy/oracle-setup.sh
+```
+
+Or by hand, with the unit above (set `User=ubuntu` or `opc`, `WorkingDirectory=/opt/site-monitor`):
 
 ```bash
 sudo systemctl daemon-reload
@@ -408,10 +422,24 @@ tail -f logs/monitor.log
 | No Telegram messages arrive | You never messaged the bot first; or wrong `TELEGRAM_CHAT_ID`; verify with the `curl` sanity check above. |
 | `Telegram send failed: HTTP 401` | Wrong/expired `TELEGRAM_BOT_TOKEN`. |
 | `Telegram send failed: HTTP 400 ... chat not found` | Wrong `TELEGRAM_CHAT_ID`, or bot isn't a member/admin of the target group/channel. |
-| Constant "OFFLINE" for a local URL | Your local server isn't running on `SITE_URL`; start it first (e.g. `firebase serve` → `http://localhost:5000`). |
+| Constant "OFFLINE" for a local URL | Your local server isn't running on `SITE_URL`; start it first. |
 | Every check is `ssl_error` | Self-signed/expired cert. Use `http://` for a local server, or fix the certificate. |
 | Alerts feel too sensitive/slow | Tune `FAILURES_TO_DOWN` / `SUCCESSES_TO_UP` and `CHECK_INTERVAL`. |
 | `fetch is not defined` | Node < 18. Upgrade Node. |
+
+---
+
+## Tests
+
+```bash
+npm test
+```
+
+- **Checker:** every outcome class against a local server: 2xx/3xx, 4xx/5xx, 429, timeout, refused connection, DNS failure.
+- **Telegram client:** delivery, Telegram's own `retry_after` on 429, and giving up after the configured attempts.
+- **End to end:** runs the real monitor process against a site whose answer the test controls, with alerts going to a fake Telegram API. It checks that a single blip sends nothing, that sustained failure sends exactly one OFFLINE alert and `/status` returns 503, that recovery and rate-limit alerts fire once each, and that `SIGTERM` sends "Monitor stopped" and exits 0.
+
+CI runs typecheck, build and tests on Node 20 and 22.
 
 ---
 
@@ -426,3 +454,9 @@ tail -f logs/monitor.log
   discarded so each check stays cheap and leak-free.
 - **Recursive `setTimeout`** (not `setInterval`) drives the loop, so a slow check
   can never overlap the next one or let timers pile up.
+
+---
+
+## License
+
+MIT, see [LICENSE](LICENSE).
